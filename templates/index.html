@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>&#x1F96C; הזמנות גרליץ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', Arial, sans-serif; background: #f5f0e8; color: #2c1a0e; direction: rtl; }
+
+  header {
+    background: linear-gradient(135deg, #6b3a1f, #a0522d);
+    color: #fff8f0;
+    padding: 20px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+  }
+  header h1 { font-size: 2rem; margin-bottom: 4px; }
+  header p { opacity: 0.85; font-size: 0.95rem; }
+
+  .container { max-width: 700px; margin: 0 auto; padding: 20px 15px; }
+
+  .card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 12px rgba(107,58,31,0.1);
+  }
+  .card h2 { color: #6b3a1f; margin-bottom: 16px; font-size: 1.2rem; border-bottom: 2px solid #f0e0cc; padding-bottom: 10px; }
+
+  .product-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #f5f0e8;
+  }
+  .product-row:last-child { border-bottom: none; }
+  .product-name { flex: 1; font-weight: 600; font-size: 0.95rem; }
+  .product-price { color: #888; font-size: 0.8rem; margin-top: 2px; }
+
+  .counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .counter button {
+    width: 34px; height: 34px;
+    border: none; border-radius: 50%;
+    font-size: 1.2rem; cursor: pointer;
+    background: #f0e0cc; color: #6b3a1f;
+    font-weight: bold; transition: background 0.2s;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .counter button:hover { background: #d4a574; color: #fff; }
+  .counter .count {
+    width: 32px; text-align: center;
+    font-size: 1.1rem; font-weight: bold;
+    color: #6b3a1f;
+  }
+
+  .btn {
+    display: block; width: 100%;
+    padding: 14px 20px;
+    border: none; border-radius: 12px;
+    font-size: 1.1rem; font-weight: bold;
+    cursor: pointer; transition: all 0.2s;
+    text-align: center;
+  }
+  .btn-primary { background: #6b3a1f; color: #fff8f0; }
+  .btn-primary:hover { background: #a0522d; }
+  .btn-whatsapp { background: #25d366; color: #fff; margin-top: 12px; }
+  .btn-whatsapp:hover { background: #1da851; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .results { display: none; }
+  .results.show { display: block; }
+
+  .stat-row {
+    display: flex; justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f0e8;
+    font-size: 0.95rem;
+  }
+  .stat-row:last-child { border-bottom: none; }
+  .stat-label { color: #888; }
+  .stat-value { font-weight: bold; color: #6b3a1f; }
+
+  .order-item {
+    display: flex; justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f0e8;
+    font-size: 0.95rem;
+  }
+  .order-item:last-child { border-bottom: none; }
+  .order-qty {
+    background: #f0e0cc; color: #6b3a1f;
+    border-radius: 20px; padding: 2px 12px;
+    font-weight: bold; font-size: 0.85rem;
+  }
+
+  .history-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  .history-table th { background: #6b3a1f; color: #fff; padding: 8px; text-align: right; }
+  .history-table td { padding: 8px; border-bottom: 1px solid #f5f0e8; }
+  .history-table tr:hover td { background: #fdf6ee; }
+
+  .badge { display: inline-block; border-radius: 20px; padding: 2px 10px; font-size: 0.75rem; font-weight: bold; }
+  .badge-good { background: #d4edda; color: #155724; }
+  .badge-bad { background: #f8d7da; color: #721c24; }
+  .badge-normal { background: #e2e3e5; color: #383d41; }
+
+  .total-box {
+    background: linear-gradient(135deg, #6b3a1f, #a0522d);
+    color: #fff;
+    border-radius: 12px;
+    padding: 16px;
+    text-align: center;
+    margin-top: 16px;
+  }
+  .total-box .amount { font-size: 2rem; font-weight: bold; }
+  .total-box .label { opacity: 0.85; font-size: 0.9rem; }
+
+  .info-banner {
+    background: #e8f4fd; border-right: 4px solid #0d6efd;
+    border-radius: 8px; padding: 12px;
+    margin-bottom: 12px; font-size: 0.88rem; color: #0a4a8a;
+  }
+
+  .loading { text-align: center; padding: 30px; color: #a0522d; }
+  .spinner {
+    display: inline-block; width: 30px; height: 30px;
+    border: 3px solid #f0e0cc;
+    border-top-color: #6b3a1f;
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    margin-bottom: 10px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .tab-bar {
+    display: flex; gap: 8px; margin-bottom: 20px;
+  }
+  .tab {
+    flex: 1; padding: 10px;
+    border: 2px solid #d4a574; border-radius: 10px;
+    background: #fff; color: #6b3a1f;
+    cursor: pointer; font-weight: bold; font-size: 0.9rem;
+    text-align: center; transition: all 0.2s;
+  }
+  .tab.active { background: #6b3a1f; color: #fff; border-color: #6b3a1f; }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#x1F96C; הזמנות גרליץ</h1>
+  <p>ניהול הזמנות שבועי חכם</p>
+</header>
+
+<div class="container">
+
+  <div class="tab-bar">
+    <div class="tab active" onclick="showTab('order')">&#x1F6D2; הזמנה חדשה</div>
+    <div class="tab" onclick="showTab('history')">&#x1F4CA; היסטוריה</div>
+  </div>
+
+  <!-- ORDER TAB -->
+  <div id="tab-order" class="tab-content active">
+
+    <div class="card">
+      <h2>&#x1F4E6; כמה נשאר על המדף?</h2>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:12px;">הזן כמה יחידות נשארו מכל מוצר</p>
+
+      <div id="products-list">
+        {% for product in products %}
+        <div class="product-row">
+          <div>
+            <div class="product-name">{{ product.name_he }}</div>
+            <div class="product-price">&#x20AA;{{ "%.2f"|format(product.buy_price) }} לי' | &#x20AA;{{ "%.2f"|format(product.sell_price) }} מכירה</div>
+          </div>
+          <div class="counter">
+            <button onclick="change('{{ product.name_he }}', -1)">&#8722;</button>
+            <span class="count" id="count-{{ loop.index }}">0</span>
+            <button onclick="change('{{ product.name_he }}', 1)">&#43;</button>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <button class="btn btn-primary" onclick="analyze()" style="margin-top:20px;">
+        &#x1F916; קבל המלצה חכמה
+      </button>
+    </div>
+
+    <!-- RESULTS -->
+    <div id="results" class="results">
+
+      <div id="loading-div" class="card loading" style="display:none;">
+        <div class="spinner"></div>
+        <p>מנתח נתונים...</p>
+      </div>
+
+      <div id="results-content" style="display:none;">
+
+        <div class="card">
+          <h2>&#x1F4CB; הזמנה מומלצת</h2>
+          <div id="order-items"></div>
+          <div class="total-box">
+            <div class="label">סה"כ להזמנה</div>
+            <div class="amount" id="total-cost">&#x20AA;0</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>&#x1F4CA; סיכום השבוע</h2>
+          <div id="weather-info" class="info-banner" style="display:none;"></div>
+          <div id="holiday-info" class="info-banner" style="display:none; border-color:#856404; background:#fff3cd; color:#856404;"></div>
+
+          <div class="stat-row">
+            <span class="stat-label">הכנסות משוערות</span>
+            <span class="stat-value" id="stat-revenue"></span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">רווח נקי</span>
+            <span class="stat-value" id="stat-profit"></span>
+          </div>
+          <div class="stat-row">
+            <span class="stat-label">אחוז מכירות</span>
+            <span class="stat-value" id="stat-sales"></span>
+          </div>
+        </div>
+
+        <button class="btn btn-whatsapp" id="whatsapp-btn" onclick="sendWhatsApp()">
+          &#x1F4F2; שלח הזמנה ליענקי
+        </button>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- HISTORY TAB -->
+  <div id="tab-history" class="tab-content">
+    <div class="card">
+      <h2>&#x1F4C5; הזמנות אחרונות</h2>
+      <div id="history-content">
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>טוען...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Product inventory state
+  const inventory = {};
+  const productNames = {{ products | map(attribute='name_he') | list | tojson }};
+
+  productNames.forEach((name, i) => {
+    inventory[name] = 0;
+  });
+
+  function change(name, delta) {
+    const idx = productNames.indexOf(name) + 1;
+    inventory[name] = Math.max(0, Math.min(20, (inventory[name] || 0) + delta));
+    document.getElementById('count-' + idx).textContent = inventory[name];
+  }
+
+  let lastResults = null;
+
+  async function analyze() {
+    document.getElementById('results').classList.add('show');
+    document.getElementById('loading-div').style.display = 'block';
+    document.getElementById('results-content').style.display = 'none';
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ inventory })
+      });
+      const data = await res.json();
+      lastResults = data;
+      showResults(data);
+    } catch(e) {
+      alert('שגיאה בחיבור לשרת. נסה שוב.');
+    } finally {
+      document.getElementById('loading-div').style.display = 'none';
+    }
+  }
+
+  function showResults(data) {
+    // Order items
+    const itemsDiv = document.getElementById('order-items');
+    itemsDiv.innerHTML = '';
+    data.order_items.forEach(item => {
+      itemsDiv.innerHTML += `
+        <div class="order-item">
+          <span>${item.name}</span>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <span style="color:#888;font-size:0.8rem;">&#x20AA;${item.cost.toFixed(0)}</span>
+            <span class="order-qty">${item.qty} יח'</span>
+          </div>
+        </div>`;
+    });
+
+    document.getElementById('total-cost').textContent = '&#x20AA;' + data.total_cost.toFixed(0);
+
+    // Summary stats
+    const s = data.summary;
+    document.getElementById('stat-revenue').textContent = '&#x20AA;' + s.total_revenue.toFixed(0);
+    document.getElementById('stat-profit').textContent = '&#x20AA;' + s.net_profit.toFixed(0);
+    document.getElementById('stat-sales').textContent = data.sales_pct + '%';
+
+    // Weather
+    const weatherDiv = document.getElementById('weather-info');
+    if (data.weather && data.weather.description_he) {
+      weatherDiv.style.display = 'block';
+      weatherDiv.textContent = '&#x1F324;&#xFE0F; ' + data.weather.description_he;
+    }
+
+    // Holiday
+    const holidayDiv = document.getElementById('holiday-info');
+    if (data.holiday_desc) {
+      holidayDiv.style.display = 'block';
+      holidayDiv.textContent = '&#x2721;&#xFE0F; ' + data.holiday_desc;
+    }
+
+    document.getElementById('results-content').style.display = 'block';
+  }
+
+  async function sendWhatsApp() {
+    if (!lastResults) return;
+    const today = new Date().toISOString().split('T')[0];
+    const res = await fetch('/api/whatsapp-url', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        recommendations: lastResults.recommendations,
+        week_date: today,
+        summary: lastResults.summary,
+        weather_desc: lastResults.weather?.description_he || '',
+        holiday_desc: lastResults.holiday_desc || ''
+      })
+    });
+    const { url } = await res.json();
+    window.open(url, '_blank');
+  }
+
+  async function loadHistory() {
+    const res = await fetch('/api/history');
+    const weeks = await res.json();
+
+    let html = '<table class="history-table"><thead><tr><th>תאריך</th><th>רווח</th><th>מכירות</th><th>סוג</th></tr></thead><tbody>';
+    weeks.forEach(w => {
+      const profit = w.net_profit || 0;
+      const badge = profit > 200 ? 'good' : profit < 0 ? 'bad' : 'normal';
+      const emoji = profit > 200 ? '&#x2705;' : profit < 0 ? '&#x274C;' : '&#x26A0;&#xFE0F;';
+      html += `<tr>
+        <td>${w.week_date}</td>
+        <td><span class="badge badge-${badge}">${emoji} &#x20AA;${Math.round(profit)}</span></td>
+        <td>${w.sales_pct || 0}%</td>
+        <td>${w.week_type || '-'}</td>
+      </tr>`;
+    });
+    html += '</tbody></table>';
+    document.getElementById('history-content').innerHTML = html;
+  }
+
+  function showTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    event.target.classList.add('active');
+    if (tab === 'history') loadHistory();
+  }
+</script>
+
+</body>
+</html>
