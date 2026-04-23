@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>&#x1F96C; כניסה - הזמנות גרליץ</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: linear-gradient(135deg, #6b3a1f, #a0522d, #c8844a);
+    min-height: 100vh;
+    display: flex; align-items: center; justify-content: center;
+    direction: rtl;
+  }
+
+  .login-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 40px 36px;
+    width: 100%; max-width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    text-align: center;
+  }
+
+  .logo {
+    font-size: 3.5rem;
+    margin-bottom: 8px;
+  }
+
+  h1 {
+    color: #6b3a1f;
+    font-size: 1.6rem;
+    margin-bottom: 4px;
+  }
+
+  .subtitle {
+    color: #a0522d;
+    font-size: 0.9rem;
+    margin-bottom: 32px;
+    opacity: 0.8;
+  }
+
+  .code-label {
+    display: block;
+    text-align: right;
+    color: #6b3a1f;
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  .code-input {
+    width: 100%;
+    padding: 14px 18px;
+    border: 2px solid #f0e0cc;
+    border-radius: 12px;
+    font-size: 1.3rem;
+    text-align: center;
+    letter-spacing: 6px;
+    color: #2c1a0e;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 8px;
+  }
+  .code-input:focus { border-color: #a0522d; }
+
+  .error-msg {
+    color: #721c24;
+    background: #f8d7da;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 0.9rem;
+    margin-bottom: 16px;
+  }
+
+  .btn-login {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, #6b3a1f, #a0522d);
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    margin-top: 8px;
+  }
+  .btn-login:hover { opacity: 0.9; }
+
+  .hint {
+    margin-top: 24px;
+    color: #aaa;
+    font-size: 0.78rem;
+  }
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="logo">&#x1F96C;</div>
+  <h1>הזמנות גרליץ</h1>
+  <p class="subtitle">ניהול הזמנות שבועי</p>
+
+  {% if error %}
+  <div class="error-msg">&#x274C; {{ error }}</div>
+  {% endif %}
+
+  <form method="POST" action="/login">
+    <label class="code-label">קוד כניסה</label>
+    <input
+      class="code-input"
+      type="password"
+      name="code"
+      placeholder="&#9679;&#9679;&#9679;&#9679;"
+      autocomplete="off"
+      autofocus
+      maxlength="20"
+    />
+    <button class="btn-login" type="submit">&#x1F511; כניסה</button>
+  </form>
+
+  <p class="hint">גרליץ בייקרי &copy; 2024</p>
+</div>
+
+</body>
+</html>
