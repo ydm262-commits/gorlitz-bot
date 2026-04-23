@@ -1,0 +1,7 @@
+python-telegram-bot==20.7
+aiohttp==3.9.3
+python-dotenv==1.0.0
+requests==2.32.0
+anthropic
+flask==3.0.0
+gunicorn==21.2.0
