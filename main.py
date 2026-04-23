@@ -1,0 +1,44 @@
+"""
+main.py - Entry point for Railway deployment
+מפעיל את הבוט והאתר יחד על שרת אחד
+"""
+
+import os
+import threading
+import asyncio
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# Initialize database once
+from database import init_database
+init_database()
+
+
+def start_bot():
+    """Run Telegram bot in background thread"""
+    token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not token:
+        print("No TELEGRAM_BOT_TOKEN - bot disabled")
+        return
+
+    print("Starting Telegram bot...")
+    try:
+        from bot import main as bot_main
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(bot_main())
+    except Exception as e:
+        print(f"Bot error: {e}")
+
+
+# Start bot in background thread
+bot_thread = threading.Thread(target=start_bot, daemon=True)
+bot_thread.start()
+
+# Start Flask web app (main process)
+from app import app
+
+port = int(os.environ.get('PORT', 5000))
+print(f"Starting web app on port {port}")
+app.run(host='0.0.0.0', port=port, debug=False)
