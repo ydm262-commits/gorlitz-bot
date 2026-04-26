@@ -190,11 +190,12 @@ class OrderRecommender:
         was_exceptional: bool = False,
         exceptional_reason: str = None
     ) -> Dict:
-        avg_cost = 3500
-        total_revenue = avg_cost * (sales_pct / 70) * 1.15
-        waste_pct = int((100 - sales_pct) * 0.4) if sales_pct < 80 else 0
-        waste_loss = (total_revenue / 100) * waste_pct
-        net_profit = total_revenue - avg_cost - waste_loss
+        avg_cost = 700  # עלות הזמנה ממוצעת מגרליץ
+        # הכנסות = מה שנמכר × מרג'ין 30%
+        total_revenue = avg_cost * (sales_pct / 100) * 1.30
+        waste_pct = max(0, 100 - sales_pct)
+        waste_loss = avg_cost * (waste_pct / 100)
+        net_profit = total_revenue - avg_cost
         return {
             "total_cost": round(avg_cost, 2),
             "total_revenue": round(total_revenue, 2),
