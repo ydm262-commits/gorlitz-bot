@@ -297,7 +297,7 @@ class GorlitzBot:
             holiday_desc=holiday_desc
         )
         self.current_recommendations = recommendations
-        summary = OrderRecommender.calculate_weekly_summary(inventory, sales_pct=sales_pct)
+        summary = OrderRecommender.calculate_weekly_summary(inventory, sales_pct=sales_pct, recommendations=recommendations)
         self.current_summary = summary
         today = datetime.now().strftime("%Y-%m-%d")
         lines = [
