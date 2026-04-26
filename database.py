@@ -18,7 +18,7 @@ class GorlitzDatabase:
         self.init_db()
 
     def init_db(self):
-        self.conn = sqlite3.connect(self.db_path)
+        self.conn = sqlite3.connect(self.db_path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
         cursor.execute("""CREATE TABLE IF NOT EXISTS products (id INTEGER PRIMARY KEY AUTOINCREMENT, name_he TEXT UNIQUE NOT NULL, buy_price REAL NOT NULL, sell_price REAL NOT NULL, shelf_life_weeks INTEGER DEFAULT 1, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
