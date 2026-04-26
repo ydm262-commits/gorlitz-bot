@@ -286,7 +286,8 @@ class GorlitzBot:
         self.holiday_desc = holiday_desc
         inventory = context.user_data.get('inventory', {})
         total_items = sum(inventory.values())
-        sales_pct = max(50, min(100, int(70 + (total_items - 10) * 2)))
+        # 0 נשאר = 100% מכירות, 10 נשאר = 70%, 20 נשאר = 40%
+        sales_pct = max(40, min(100, 100 - total_items * 3))
         weather_factor = 0.80 if weather.get('is_rainy') else 1.0
         recommendations = OrderRecommender.calculate_recommendation(
             inventory,
