@@ -5,7 +5,6 @@ app.py - Flask Web App for Gorlitz Orders
 
 import os
 import asyncio
-import urllib.parse
 from datetime import datetime
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
@@ -39,7 +38,8 @@ def get_db():
 def run_async(coro):
     try:
         loop = asyncio.get_event_loop()
-        if loop.is_closed(): raise RuntimeError
+        if loop.is_closed():
+            raise RuntimeError
     except RuntimeError:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -86,8 +86,10 @@ def api_analyze():
     from recommender import OrderRecommender
     from weather import WeatherClient
     from jewish_calendar import JewishCalendar
+
     data = request.get_json()
     inventory = data.get('inventory', {})
+
     try:
         weather = run_async(WeatherClient.get_friday_forecast())
         calendar = JewishCalendar()
@@ -95,11 +97,21 @@ def api_analyze():
     except Exception:
         weather = {'is_rainy': False, 'description_he': ''}
         holiday_factor, holiday_desc = 1.0, ''
+
     weather_factor = 0.80 if weather.get('is_rainy') else 1.0
     total_items = sum(inventory.values())
     sales_pct = max(50, min(100, int(70 + (total_items - 10) * 2)))
-    recommendations = OrderRecommender.calculate_recommendation(inventory, weather_factor=weather_factor, holiday_factor=holiday_factor, sales_pct=sales_pct)
+
+    recommendations = OrderRecommender.calculate_recommendation(
+        inventory,
+        weather_factor=weather_factor,
+        holiday_factor=holiday_factor,
+        sales_pct=sales_pct,
+        holiday_desc=holiday_desc
+    )
+
     summary = OrderRecommender.calculate_weekly_summary(inventory, sales_pct=sales_pct)
+
     db = get_db()
     total_cost = 0
     order_items = []
@@ -108,30 +120,56 @@ def api_analyze():
             product = db.get_product_by_name(product_name)
             cost = qty * product['buy_price']
             total_cost += cost
-            order_items.append({'name': product_name, 'qty': qty, 'cost': round(cost, 2), 'buy_price': product['buy_price']})
-    return jsonify({'recommendations': recommendations, 'order_items': order_items, 'total_cost': round(total_cost, 2), 'summary': summary, 'weather': weather, 'holiday_desc': holiday_desc, 'sales_pct': sales_pct})
+            order_items.append({
+                'name': product_name,
+                'qty': qty,
+                'cost': round(cost, 2),
+                'buy_price': product['buy_price']
+            })
+
+    return jsonify({
+        'recommendations': recommendations,
+        'order_items': order_items,
+        'total_cost': round(total_cost, 2),
+        'summary': summary,
+        'weather': weather,
+        'holiday_desc': holiday_desc,
+        'sales_pct': sales_pct
+    })
 
 
 @app.route('/api/history')
 @login_required
 def api_history():
     db = get_db()
-    return jsonify()
+    weeks = db.get_recent_weeks(10)
+    return jsonify(weeks)
 
-@app.route('/api/whatsapp-url', methods=['POST'])
+
+@app.route('/api/whatsapp-message', methods=['POST'])
 @login_required
 def api_whatsapp():
+    """
+    Return the WhatsApp message TEXT (unencoded).
+    The frontend encodes it using encodeURIComponent for correct UTF-8 handling.
+    """
     from recommender import OrderRecommender
+
     data = request.get_json()
     recommendations = data.get('recommendations', {})
     week_date = data.get('week_date', datetime.now().strftime('%Y-%m-%d'))
     summary = data.get('summary', {})
     weather_desc = data.get('weather_desc', '')
     holiday_desc = data.get('holiday_desc', '')
-    message = OrderRecommender.format_order_message(recommendations, week_date, summary, weather_desc, holiday_desc)
-    encoded = urllib.parse.quote(message)
-    url = f"https://wa.me/{GORLITZ_WHATSAPP}?text={encoded}"
-    return jsonify({'url': url})
+
+    message = OrderRecommender.format_order_message(
+        recommendations, week_date, summary, weather_desc, holiday_desc
+    )
+
+    return jsonify({
+        'message': message,
+        'phone': GORLITZ_WHATSAPP
+    })
 
 
 @app.route('/api/save-order', methods=['POST'])
