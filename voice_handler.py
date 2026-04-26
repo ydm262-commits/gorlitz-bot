@@ -23,6 +23,7 @@ PRODUCT_SHORT_CODES = {
 PRODUCT_KEYWORDS = {
     "חלות": "חלות מתוק",
     "ח\"מ": "חלות מתוק",
+    "רוגלך": "רוגלך שוקולד",
     "רוגלך שוקולד": "רוגלך שוקולד",
     "ר\"ש": "רוגלך שוקולד",
     "רוגלך עלים": "רוגלך עלים קקאו",
@@ -186,7 +187,64 @@ class VoiceTranscriber:
 
 
 async def parse_inventory_text(text: str) -> Dict[str, int]:
-    return HebrewInventoryParser.parse_inventory_text(text)
+    """פרסור משופר של טקסט מלאי — תומך בכל הפורמטים הנפוצים"""
+    if not text or not isinstance(text, str):
+        return {}
+
+    # נרמול: החלף פסיקים ומפרידים ברווח
+    normalized = re.sub(r'[,;/|\\]', ' ', text.strip())
+    normalized = re.sub(r'\s+', ' ', normalized).strip()
+
+    # פצל לטוקנים: מילים עבריות ומספרים
+    tokens = re.findall(r'[\u05d0-\u05ea]+|[0-9]+', normalized)
+
+    inventory = {}
+    i = 0
+    while i < len(tokens):
+        token = tokens[i]
+        if token.isdigit():
+            # מספר ראשון: חפש מילים עבריות אחריו
+            qty = int(token)
+            j = i + 1
+            words = []
+            while j < len(tokens) and not tokens[j].isdigit():
+                words.append(tokens[j])
+                j += 1
+            found = False
+            for length in range(min(len(words), 3), 0, -1):
+                phrase = ' '.join(words[:length])
+                product = HebrewInventoryParser._match_product(phrase)
+                if product:
+                    inventory[product] = qty
+                    i = i + 1 + length
+                    found = True
+                    break
+            if not found:
+                i += 1
+        else:
+            # מילה עברית ראשונה: אסוף מילים ואז מספר
+            words = []
+            j = i
+            while j < len(tokens) and not tokens[j].isdigit():
+                words.append(tokens[j])
+                j += 1
+            if j < len(tokens) and tokens[j].isdigit():
+                qty = int(tokens[j])
+                found = False
+                for length in range(min(len(words), 3), 0, -1):
+                    phrase = ' '.join(words[:length])
+                    product = HebrewInventoryParser._match_product(phrase)
+                    if product:
+                        inventory[product] = qty
+                        i = j + 1
+                        found = True
+                        break
+                if not found:
+                    i = j + 1
+            else:
+                i = j if j > i else i + 1
+
+    return inventory
 
 
 async def download_voice_file(file_path: str, bot_token: str, file_id: str) -> str:
