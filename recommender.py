@@ -64,7 +64,8 @@ class OrderRecommender:
         inventory_left: Dict[str, int],
         weather_factor: float = 1.0,
         holiday_factor: float = 1.0,
-        sales_pct: int = 70
+        sales_pct: int = 70,
+        holiday_desc: str = ""
     ) -> Dict[str, int]:
         """
         חישוב כמויות הזמנה מומלצות
