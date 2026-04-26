@@ -484,7 +484,7 @@ async def main():
 
     # התחל את הבוט
     logger.info("Starting Gorlitz Bot...")
-    await app.run_polling(allowed_updates=Update.ALL_TYPES)
+    await app.run_polling(allowed_updates=Update.ALL_TYPES, stop_signals=None)
 
 
 if __name__ == "__main__":
