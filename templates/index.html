@@ -339,7 +339,7 @@
   async function sendWhatsApp() {
     if (!lastResults) return;
     const today = new Date().toISOString().split('T')[0];
-    const res = await fetch('/api/whatsapp-url', {
+    const res = await fetch('/api/whatsapp-message', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
@@ -350,7 +350,8 @@
         holiday_desc: lastResults.holiday_desc || ''
       })
     });
-    const { url } = await res.json();
+    const data = await res.json();
+    const url = `https://wa.me/${data.phone}?text=${encodeURIComponent(data.message)}`;
     window.open(url, '_blank');
   }
 
