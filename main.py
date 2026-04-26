@@ -34,7 +34,9 @@ else:
     print("Starting Telegram bot...")
     try:
         from bot import main as bot_main
-        asyncio.run(bot_main())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(bot_main())
     except Exception as e:
         print(f"Bot error: {e}")
         import time
