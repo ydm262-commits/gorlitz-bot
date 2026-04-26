@@ -36,6 +36,7 @@ def get_db():
 
 
 def run_async(coro):
+    """Run async function in sync context"""
     try:
         loop = asyncio.get_event_loop()
         if loop.is_closed():
@@ -90,6 +91,7 @@ def api_analyze():
     data = request.get_json()
     inventory = data.get('inventory', {})
 
+    # Get weather and calendar
     try:
         weather = run_async(WeatherClient.get_friday_forecast())
         calendar = JewishCalendar()
@@ -111,7 +113,9 @@ def api_analyze():
         holiday_desc=holiday_desc
     )
 
-    summary = OrderRecommender.calculate_weekly_summary(inventory, sales_pct=sales_pct)
+    summary = OrderRecommender.calculate_weekly_summary(
+        inventory, sales_pct=sales_pct, recommendations=recommendations
+    )
 
     db = get_db()
     total_cost = 0
@@ -152,7 +156,7 @@ def api_history():
 def api_whatsapp():
     """
     Return the WhatsApp message TEXT (unencoded).
-    The frontend encodes it using encodeURIComponent for correct UTF-8 handling.
+    The frontend will encode it using encodeURIComponent for correct UTF-8 handling.
     """
     from recommender import OrderRecommender
 
@@ -167,6 +171,7 @@ def api_whatsapp():
         recommendations, week_date, summary, weather_desc, holiday_desc
     )
 
+    # Return the raw message text - let JavaScript encode it correctly
     return jsonify({
         'message': message,
         'phone': GORLITZ_WHATSAPP
