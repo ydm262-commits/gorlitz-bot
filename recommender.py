@@ -187,17 +187,42 @@ class OrderRecommender:
     def calculate_weekly_summary(
         inventory_left: Dict[str, int],
         sales_pct: int,
+        recommendations: Dict[str, int] = None,
         was_exceptional: bool = False,
         exceptional_reason: str = None
     ) -> Dict:
-        avg_cost = 700  # עלות הזמנה ממוצעת מגרליץ
-        # הכנסות = מה שנמכר × מרג'ין 30%
-        total_revenue = avg_cost * (sales_pct / 100) * 1.30
+        """
+        חישוב סיכום שבועי לפי מחירים אמיתיים מה-DB.
+
+        recommendations: כמויות שמוזמנות (לחישוב עלות ורווח אמיתיים)
+        """
+        db = get_database()
+
+        total_cost = 0.0
+        total_revenue = 0.0
+
+        if recommendations:
+            # חישוב לפי מחירים אמיתיים
+            for product_name, qty in recommendations.items():
+                if qty > 0:
+                    product = db.get_product_by_name(product_name)
+                    if product:
+                        total_cost += qty * product['buy_price']
+                        # הכנסות = כמה שנמכר × מחיר מכירה
+                        total_revenue += qty * product['sell_price'] * (sales_pct / 100)
+        else:
+            # fallback אם אין המלצות
+            products = db.get_all_products()
+            for p in products:
+                total_cost += 5 * p['buy_price']
+                total_revenue += 5 * p['sell_price'] * (sales_pct / 100)
+
         waste_pct = max(0, 100 - sales_pct)
-        waste_loss = avg_cost * (waste_pct / 100)
-        net_profit = total_revenue - avg_cost
+        waste_loss = total_cost * (waste_pct / 100)
+        net_profit = total_revenue - total_cost
+
         return {
-            "total_cost": round(avg_cost, 2),
+            "total_cost": round(total_cost, 2),
             "total_revenue": round(total_revenue, 2),
             "net_profit": round(net_profit, 2),
             "waste_pct": waste_pct,
