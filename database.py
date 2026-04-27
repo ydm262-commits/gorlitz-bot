@@ -100,6 +100,13 @@ class GorlitzDatabase:
         cursor.execute("SELECT * FROM weekly_summary ORDER BY week_date DESC LIMIT ?", (weeks,))
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_average_sales_pct(self) -> float:
+        """חישוב אחוז מכירות ממוצע"""
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT AVG(sales_pct) FROM weekly_summary WHERE sales_pct > 0")
+        result = cursor.fetchone()[0]
+        return result if result else 70
+
     def close(self):
         if self.conn: self.conn.close()
 
