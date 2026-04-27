@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+מתקבל המלצות ללא חשיבה כלל לא נראה שמחובר לקלוד<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -311,12 +311,12 @@
         </div>`;
     });
 
-    document.getElementById('total-cost').textContent = '&#x20AA;' + data.total_cost.toFixed(0);
+    document.getElementById('total-cost').textContent = '₪' + data.total_cost.toFixed(0);
 
     // Summary stats
     const s = data.summary;
-    document.getElementById('stat-revenue').textContent = '&#x20AA;' + s.total_revenue.toFixed(0);
-    document.getElementById('stat-profit').textContent = '&#x20AA;' + s.net_profit.toFixed(0);
+    document.getElementById('stat-revenue').textContent = '₪' + s.total_revenue.toFixed(0);
+    document.getElementById('stat-profit').textContent = '₪' + s.net_profit.toFixed(0);
     document.getElementById('stat-sales').textContent = data.sales_pct + '%';
 
     // Weather
