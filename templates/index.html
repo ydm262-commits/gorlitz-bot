@@ -440,20 +440,27 @@
 
   function changeRec(name, delta) {
     if (!window._currentRecs) return;
-    const buyPrice = parseFloat(document.querySelector(`[data-buy="${name}"]`)?.dataset.buy || 0);
     window._currentRecs[name] = Math.max(0, (window._currentRecs[name] || 0) + delta);
     const qty = window._currentRecs[name];
-    const key = name.replace(/[^a-z0-9]/gi,'_');
-    const el = document.getElementById('rec-' + key);
-    if (el) el.textContent = qty + " יח'";
+
+    // חיפוש השורה לפי dataset (עוקף בעיית אפוסטרוף בסלקטור CSS)
+    let targetRow = null;
+    document.querySelectorAll('.rec-btn[data-delta="1"]').forEach(btn => {
+      if (btn.dataset.name === name) targetRow = btn.closest('.order-item');
+    });
+
+    if (targetRow) {
+      targetRow.querySelector('.rec-qty').textContent = qty + " יח'";
+      const price = window._buyPrices[name] || 0;
+      targetRow.querySelector('.item-cost').textContent = '₪' + (qty * price).toFixed(0);
+    }
+
     // עדכן סה"כ
     let total = 0;
-    document.querySelectorAll('[id^="rec-"]').forEach(el => {
-      const n = el.id.replace('rec-','').replace(/_/g,' ');
-      // מחפש את המחיר מהרשימה המקורית
-    });
-    // שמור לשליחה
-    window._editedRecs = Object.assign({}, window._currentRecs);
+    for (const [n, q] of Object.entries(window._currentRecs)) {
+      total += q * (window._buyPrices[n] || 0);
+    }
+    document.getElementById('total-cost').textContent = '₪' + total.toFixed(0);
   }
 
   async function syncSheet() {
