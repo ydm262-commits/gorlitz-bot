@@ -1,8 +1,11 @@
 """
 recommender.py - Smart Recommendation Engine for Gorlitz Bot
 תפקיד: חישוב הזמנות מומלצות בהתאם לנתונים היסטוריים וגורמים חיצוניים
+משתמש ב-Claude AI לחשיבה חכמה, עם fallback חישובי
 """
 
+import os
+import json
 from typing import Dict, List, Optional
 from database import get_database
 from datetime import datetime
@@ -11,53 +14,140 @@ from datetime import datetime
 class OrderRecommender:
     """מנוע מומלץ הזמנות חכם"""
 
-    # מחיר מינימלי להזמנה מגרליץ
     MINIMUM_ORDER_NIS = 500
-
-    # מוצרים שיכולים להחזיק שבועיים
     TWO_WEEK_PRODUCTS = ["רוגלך עלים קקאו", "קוקוש קייק"]
+
+    # כמויות בסיס ריאליות לשבוע רגיל (calibrated לפי ניסיון)
+    PRODUCT_DEFAULTS = {
+        "חלות מתוק":            6,
+        "רוגלך שוקולד":         10,
+        "רוגלך עלים קקאו":      8,
+        "קוקוש קייק":           5,
+        "קראנץ' קקאו":          7,
+        "גביניות":              6,
+        "פס שמרים גבינה":       10,
+        "פס שמרים קקאו שקית":   12,
+        "פס שוקולד פירורים":    7,
+    }
 
     @staticmethod
     def calculate_baseline_recommendation() -> Dict[str, int]:
         """
-        חישוב כמות בסיסית מומלצת לכל מוצר על סמך נתונים היסטוריים
-
-        Returns:
-            dict: {product_name: recommended_quantity}
+        כמות בסיסית לכל מוצר — מהנתונים ההיסטוריים ואחוז מכירות ממוצע.
         """
         db = get_database()
         products = db.get_all_products()
 
-        # קבל את השבועות הרגילים האחרונים (ללא חגים או שבועות חריגות)
         recent_weeks = db.get_recent_weeks(weeks=15)
         normal_weeks = [w for w in recent_weeks if w.get('week_type') == 'normal']
+        avg_sales_pct = db.get_average_sales_pct()
+        if normal_weeks:
+            avg_sales_pct = sum(w['sales_pct'] for w in normal_weeks) / len(normal_weeks)
+
+        # מקדם מכירות יחסי לבסיס 80%
+        sales_factor = avg_sales_pct / 80.0
 
         baseline = {}
-
         for product in products:
-            product_name = product['name_he']
-            sell_price = product['sell_price']
-            buy_price = product['buy_price']
-
-            # ממוצע של 70% מכירות בשבועות רגילים
-            avg_sales_pct = db.get_average_sales_pct()
-            if normal_weeks:
-                avg_sales_pct = sum(w['sales_pct'] for w in normal_weeks) / len(normal_weeks)
-
-            # חישוב כמות בסיסית
-            # בהנחה שהחנות קנתה בקופ"ח ~3000-4000 שקלים בשבוע ממוצע
-            avg_budget = 3500
-            sales_factor = avg_sales_pct / 100
-
-            # כמות משוערת
-            estimated_qty = int((avg_budget * sales_factor) / buy_price)
-
-            # וודא כמות סבירה (בין 2 ל-20 יחידות לרוב)
-            estimated_qty = max(2, min(20, estimated_qty))
-
-            baseline[product_name] = estimated_qty
+            name = product['name_he']
+            base = OrderRecommender.PRODUCT_DEFAULTS.get(name, 6)
+            qty = max(2, round(base * sales_factor))
+            baseline[name] = qty
 
         return baseline
+
+    @staticmethod
+    def get_claude_recommendation(
+        inventory_left: Dict[str, int],
+        weather_factor: float,
+        holiday_factor: float,
+        sales_pct: int,
+        weather_desc: str = "",
+        holiday_desc: str = ""
+    ) -> Optional[Dict[str, int]]:
+        """
+        שולח בקשה ל-Claude AI לקבל המלצת הזמנה חכמה.
+        מחזיר None אם אין API key או אם קורה שגיאה.
+        """
+        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return None
+
+        try:
+            import anthropic
+            db = get_database()
+            products = db.get_all_products()
+            recent_weeks = db.get_recent_weeks(8)
+
+            # בנה הקשר
+            products_info = "\n".join([
+                f"- {p['name_he']}: עלות {p['buy_price']}₪, מכירה {p['sell_price']}₪"
+                for p in products
+            ])
+            inventory_info = "\n".join([
+                f"- {name}: נשאר {qty} יח'" for name, qty in inventory_left.items() if qty > 0
+            ]) or "מלאי ריק — מכר הכל"
+
+            history_info = "\n".join([
+                f"- {w.get('week_date','')}: {w.get('week_type','')}, {w.get('sales_pct',0)}% מכירות, רווח {w.get('net_profit',0):.0f}₪"
+                for w in recent_weeks[:6]
+            ])
+
+            context_parts = []
+            if weather_desc:
+                context_parts.append(f"מזג אוויר: {weather_desc}")
+            if holiday_desc:
+                context_parts.append(f"חג/מועד: {holiday_desc}")
+            context_parts.append(f"אחוז מכירות צפוי השבוע: {sales_pct}%")
+            context_str = " | ".join(context_parts)
+
+            prompt = f"""אתה עוזר חכם לחנות מאפה בבני ברק שמזמינה מגרליץ כל שבוע.
+עליך להמליץ כמה יחידות להזמין מכל מוצר לשבוע הקרוב.
+
+מוצרים ומחירים:
+{products_info}
+
+מה נשאר על המדף מהשבוע שעבר:
+{inventory_info}
+
+הקשר השבוע: {context_str}
+
+היסטוריה אחרונה:
+{history_info}
+
+הנחיות חשיבה:
+- מוצר שנשאר ממנו הרבה — הזמן פחות
+- שבוע גשום — הפחת 15-20% מהרגיל
+- קרוב לחג — הגדל לפי גורם החג
+- הזמנה מינימלית: 500₪ סה"כ
+- כמויות ריאליות: בין 2 ל-20 יחידות לרוב המוצרים
+- חלות מתוק בדרך כלל 4-8 יח', רוגלך 6-14 יח', פסים 6-15 יח'
+
+ענה אך ורק ב-JSON תקין, ללא טקסט נוסף, בפורמט:
+{{"שם_מוצר": כמות, ...}}"""
+
+            client = anthropic.Anthropic(api_key=api_key)
+            message = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            response_text = message.content[0].text.strip()
+            # נקה JSON אם יש markdown
+            if "```" in response_text:
+                response_text = response_text.split("```")[1]
+                if response_text.startswith("json"):
+                    response_text = response_text[4:]
+            response_text = response_text.strip()
+
+            recommendations = json.loads(response_text)
+            # וודא שכל הערכים הם מספרים חיוביים
+            return {k: max(0, int(v)) for k, v in recommendations.items() if v > 0}
+
+        except Exception as e:
+            print(f"Claude recommendation failed: {e}")
+            return None
 
     @staticmethod
     def calculate_recommendation(
@@ -68,62 +158,63 @@ class OrderRecommender:
         holiday_desc: str = ""
     ) -> Dict[str, int]:
         """
-        חישוב כמויות הזמנה מומלצות
-
-        Args:
-            inventory_left: מלאי שנשאר {product_name: qty}
-            weather_factor: מקדם מזג אוויר (0.7-1.0)
-            holiday_factor: מקדם חג (0.7-1.6)
-            sales_pct: אחוז מכירות משוער
-
-        Returns:
-            dict: {product_name: recommended_qty}
+        חישוב כמויות הזמנה מומלצות — Claude AI ראשון, fallback חישובי.
         """
+        # נסה Claude AI קודם
+        weather_desc = "גשום" if weather_factor < 1.0 else "יפה"
+        claude_result = OrderRecommender.get_claude_recommendation(
+            inventory_left=inventory_left,
+            weather_factor=weather_factor,
+            holiday_factor=holiday_factor,
+            sales_pct=sales_pct,
+            weather_desc=weather_desc,
+            holiday_desc=holiday_desc
+        )
+        if claude_result:
+            print(f"Using Claude AI recommendation")
+            return claude_result
+
+        # Fallback: חישוב חכם עם כמויות ריאליות
+        print("Using rule-based recommendation (no Claude API key)")
         db = get_database()
         products = db.get_all_products()
         baseline = OrderRecommender.calculate_baseline_recommendation()
-
         recommendations = {}
 
         for product in products:
             name = product['name_he']
-            buy_price = product['buy_price']
-
-            # כמות בסיסית
             base_qty = baseline.get(name, 5)
 
             # החל מקדמים
-            adjusted_qty = base_qty * weather_factor * holiday_factor
+            adjusted = base_qty * weather_factor * holiday_factor
+            adjusted *= (sales_pct / 70.0)
 
-            # הוסף מקדם אחוז מכירות
-            adjusted_qty *= (sales_pct / 70)  # 70 = ממוצע
-
-            # מלאי נוכחי
-            current_inventory = inventory_left.get(name, 0)
-            qty_to_order = int(max(0, adjusted_qty - current_inventory))
-
-            # עגל לכמות סבירה
-            if qty_to_order > 0:
-                qty_to_order = max(1, round(qty_to_order))
+            # הפחת מלאי קיים
+            current = inventory_left.get(name, 0)
+            # מוצרים דו-שבועיים — הפחת פחות
+            if name in OrderRecommender.TWO_WEEK_PRODUCTS:
+                qty_to_order = max(0, round(adjusted - current * 0.5))
+            else:
+                qty_to_order = max(0, round(adjusted - current))
 
             recommendations[name] = qty_to_order
 
-        # וודא הזמנה מינימלית
-        total_cost = sum(recommendations[name] * db.get_product_by_name(name)['buy_price']
-                        for name in recommendations if recommendations[name] > 0)
-
-        if total_cost < OrderRecommender.MINIMUM_ORDER_NIS:
-            # הוסף מוצרים עד שנגיע להזמנה מינימלית
+        # וודא מינימום 500₪
+        total_cost = sum(
+            recommendations[p['name_he']] * p['buy_price']
+            for p in products
+            if recommendations.get(p['name_he'], 0) > 0
+        )
+        if total_cost < OrderRecommender.MINIMUM_ORDER_NIS and total_cost > 0:
             shortage = OrderRecommender.MINIMUM_ORDER_NIS - total_cost
-            for name in recommendations:
-                if recommendations[name] > 0:
-                    product = db.get_product_by_name(name)
-                    additional = int(shortage / product['buy_price'])
-                    if additional > 0:
-                        recommendations[name] += additional
-                        shortage -= additional * product['buy_price']
-                        if shortage <= 0:
-                            break
+            for p in products:
+                name = p['name_he']
+                if recommendations.get(name, 0) > 0:
+                    add = max(1, int(shortage / p['buy_price']))
+                    recommendations[name] += add
+                    shortage -= add * p['buy_price']
+                    if shortage <= 0:
+                        break
 
         return {k: v for k, v in recommendations.items() if v > 0}
 
@@ -135,19 +226,7 @@ class OrderRecommender:
         was_exceptional: bool = False,
         exceptional_reason: str = None
     ) -> Dict:
-        """
-        חישוב סיכום שבועי (מחיר, הכנסות, רווח) - מחירים אמיתיים מ-DB
-
-        Args:
-            inventory_left: מלאי שנשאר
-            sales_pct: אחוז מכירות
-            recommendations: כמויות מוזמנות {product_name: qty}
-            was_exceptional: האם היה אירוע חריג
-            exceptional_reason: תיאור האירוע החריג
-
-        Returns:
-            dict: סיכום שבועי עם חישובים אמיתיים
-        """
+        """חישוב סיכום שבועי עם מחירים אמיתיים מ-DB"""
         db = get_database()
         total_cost = 0.0
         total_revenue = 0.0
@@ -165,9 +244,9 @@ class OrderRecommender:
                 total_cost += 5 * p['buy_price']
                 total_revenue += 5 * p['sell_price'] * (sales_pct / 100)
 
+        net_profit = total_revenue - total_cost
         waste_pct = max(0, 100 - sales_pct)
         waste_loss = total_cost * (waste_pct / 100)
-        net_profit = total_revenue - total_cost
 
         return {
             "total_cost": round(total_cost, 2),
@@ -188,19 +267,7 @@ class OrderRecommender:
         weather_desc: str = "",
         holiday_desc: str = ""
     ) -> str:
-        """
-        עיצוב הודעת הזמנה לWhatsApp
-
-        Args:
-            recommendations: כמויות מומלצות
-            week_date: תאריך השבוע
-            summary: סיכום שבועי
-            weather_desc: תיאור מזג אוויר
-            holiday_desc: תיאור חג
-
-        Returns:
-            str: הודעת WhatsApp עברית מעוצבת
-        """
+        """עיצוב הודעת הזמנה לWhatsApp"""
         db = get_database()
 
         lines = [
@@ -225,50 +292,8 @@ class OrderRecommender:
 
         if weather_desc:
             lines.append(f"מזג אוויר: {weather_desc}")
-
         if holiday_desc:
             lines.append(f"הערה: {holiday_desc}")
 
-        lines.extend([
-            "",
-            "תודה רבה, יענקי!"
-        ])
-
-        return "\n".join(lines)
-
-    @staticmethod
-    def estimate_next_week_performance(
-        weather_forecast: Dict,
-        holiday_factor: float,
-        current_inventory: Dict[str, int]
-    ) -> str:
-        """
-        אומדן ביצועים לשבוע הקרוב
-
-        Returns:
-            str: תיאור עברי של הצפוי
-        """
-        lines = ["📈 הערכה לשבוע הקרוב:", ""]
-
-        # מזג אוויר
-        if weather_forecast.get('is_rainy'):
-            lines.append(f"  🌧️ {weather_forecast['description_he']} ({weather_forecast['precipitation_mm']}מ״מ)")
-            lines.append("  → צפוי ירידה בביקורים, הפחת הזמנה ב-20%")
-        else:
-            lines.append(f"  {weather_forecast['description_he']}")
-            lines.append("  → תנאים טובים למכירות")
-
-        # חגים
-        if holiday_factor > 1.0:
-            lines.append(f"  ✡️ קרוב לחג - הזמנה מוגברת ב-{int((holiday_factor-1)*100)}%")
-        elif holiday_factor < 1.0:
-            lines.append(f"  ⚠️ תקופה קשה - צפוי ירידה ב-{int((1-holiday_factor)*100)}%")
-
-        # מלאי
-        total_items = sum(current_inventory.values())
-        if total_items > 30:
-            lines.append(f"  📦 מלאי גבוה ({total_items} יח') - אפשר להזמין פחות")
-        elif total_items < 10:
-            lines.append(f"  ⚠️ מלאי נמוך ({total_items} יח') - הזמן להזמין!")
-
+        lines.extend(["", "תודה רבה, יענקי!"])
         return "\n".join(lines)
