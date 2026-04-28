@@ -472,6 +472,16 @@
     window.open(url, '_blank');
   }
 
+  async function testWhatsApp() {
+    const res = await fetch('/api/test-whatsapp', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ phone: '972559381054' })
+    });
+    const data = await res.json();
+    if (data.success) alert('✅ הודעת בדיקה נשלחה לסקריפט! בדוק את הוואטסאפ שלך.');
+  }
+
   async function loadHistory() {
     const res = await fetch('/api/history');
     const weeks = await res.json();
