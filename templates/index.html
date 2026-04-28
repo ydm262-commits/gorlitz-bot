@@ -1,4 +1,4 @@
-מתקבל המלצות ללא חשיבה כלל לא נראה שמחובר לקלוד<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -183,9 +183,9 @@
             <div class="product-price">&#x20AA;{{ "%.2f"|format(product.buy_price) }} לי' | &#x20AA;{{ "%.2f"|format(product.sell_price) }} מכירה</div>
           </div>
           <div class="counter">
-            <button onclick="change('{{ product.name_he }}', -1)">&#8722;</button>
+            <button onclick="change(this)" data-name="{{ product.name_he }}" data-delta="-1">&#8722;</button>
             <span class="count" id="count-{{ loop.index }}">0</span>
-            <button onclick="change('{{ product.name_he }}', 1)">&#43;</button>
+            <button onclick="change(this)" data-name="{{ product.name_he }}" data-delta="1">&#43;</button>
           </div>
         </div>
         {% endfor %}
@@ -201,7 +201,7 @@
 
       <div id="loading-div" class="card loading" style="display:none;">
         <div class="spinner"></div>
-        <p>מנתח נתונ7�ם...</p>
+        <p>מנתח נתונים...</p>
       </div>
 
       <div id="results-content" style="display:none;">
@@ -267,7 +267,9 @@
     inventory[name] = 0;
   });
 
-  function change(name, delta) {
+  function change(btn) {
+    const name = btn.dataset.name;
+    const delta = parseInt(btn.dataset.delta);
     const idx = productNames.indexOf(name) + 1;
     inventory[name] = Math.max(0, Math.min(20, (inventory[name] || 0) + delta));
     document.getElementById('count-' + idx).textContent = inventory[name];
@@ -311,12 +313,12 @@
         </div>`;
     });
 
-    document.getElementById('total-cost').textContent = '₪' + data.total_cost.toFixed(0);
+    document.getElementById('total-cost').textContent = '&#x20AA;' + data.total_cost.toFixed(0);
 
     // Summary stats
     const s = data.summary;
-    document.getElementById('stat-revenue').textContent = '₪' + s.total_revenue.toFixed(0);
-    document.getElementById('stat-profit').textContent = '₪' + s.net_profit.toFixed(0);
+    document.getElementById('stat-revenue').textContent = '&#x20AA;' + s.total_revenue.toFixed(0);
+    document.getElementById('stat-profit').textContent = '&#x20AA;' + s.net_profit.toFixed(0);
     document.getElementById('stat-sales').textContent = data.sales_pct + '%';
 
     // Weather
