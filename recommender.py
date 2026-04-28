@@ -77,84 +77,88 @@ class OrderRecommender:
             import anthropic
             db = get_database()
             products = db.get_all_products()
-            recent_weeks = db.get_recent_weeks(50)  # כל ההיסטוריה
+            weekly_summaries = db.get_recent_weeks(50)
+            all_orders = db.get_recent_product_orders(weeks=30)
 
-            # בנה הקשר
             products_info = "\n".join([
                 f"- {p['name_he']}: עלות {p['buy_price']}₪, מכירה {p['sell_price']}₪"
                 for p in products
             ])
             inventory_info = "\n".join([
                 f"- {name}: נשאר {qty} יח'" for name, qty in inventory_left.items() if qty > 0
-            ]) or "מלאי ריק — מכר הכל"
+            ]) or "ריק — הכל נמכר"
 
-            # ניתוח מגמה מהיסטוריה
-            normal_weeks = [w for w in recent_weeks if w.get('week_type') == 'normal']
-            recent_3 = [w for w in recent_weeks[:3] if w.get('sales_pct', 0) > 0]
-            recent_avg = sum(w.get('sales_pct', 0) for w in recent_3) / len(recent_3) if recent_3 else 65
-            normal_avg = sum(w.get('sales_pct', 0) for w in normal_weeks) / len(normal_weeks) if normal_weeks else 65
-            trend = "עולה" if recent_avg > normal_avg + 5 else ("יורד" if recent_avg < normal_avg - 5 else "יציב")
-
-            history_info = "\n".join([
-                f"- {w.get('week_date','')}: {w.get('week_type','')}, "
-                f"{w.get('sales_pct',0)}% נמכר, "
-                f"רווח {w.get('net_profit',0):.0f}₪"
-                + (f", גשום" if w.get('weather_rain') else "")
-                + (f", {w.get('holiday_type','')}" if w.get('holiday_type') else "")
-                for w in recent_weeks
-            ])
+            # טבלת הזמנות גולמית — כל 24 שבועות
+            product_names = [p['name_he'] for p in products]
+            header = "תאריך      | " + " | ".join([n[:6] for n in product_names]) + " | % מכירות | הערות"
+            rows = []
+            summary_by_date = {w['week_date']: w for w in weekly_summaries}
+            for week in sorted(all_orders, key=lambda x: x['week_date']):
+                date = week['week_date']
+                qtys = [str(week['orders'].get(p, 0)) for p in product_names]
+                summary = summary_by_date.get(date, {})
+                sales = summary.get('sales_pct', '?')
+                note = summary.get('week_type', '')
+                if summary.get('weather_rain'):
+                    note += ' גשם'
+                if summary.get('holiday_type'):
+                    note += f" {summary.get('holiday_type')}"
+                rows.append(f"{date} | " + " | ".join(qtys) + f" | {sales}% | {note}")
+            orders_table = header + "\n" + "\n".join(rows)
 
             context_parts = []
             if weather_desc:
                 context_parts.append(f"מזג אוויר: {weather_desc}")
             if holiday_desc:
                 context_parts.append(f"חג/מועד: {holiday_desc}")
-            context_parts.append(f"אחוז מכירות שנשאר (מלאי קיים): {sales_pct}%")
-            context_str = " | ".join(context_parts)
+            if sales_pct < 100:
+                context_parts.append(f"נשאר מלאי — אחוז מכירות השבוע כ-{sales_pct}%")
+            context_str = " | ".join(context_parts) if context_parts else "שבוע רגיל"
 
-            prompt = f"""אתה מנהל הזמנות של חנות מאפה בבני ברק שמזמינה מגרליץ כל שבוע.
+            prompt = f"""אתה מנהל הזמנות של חנות מאפה בבני ברק שמזמינה ממאפיית גרליץ כל שבוע.
 
-מוצרים ומחיריהם (מחיר קנייה | מחיר מכירה):
+להלן טבלת כל ההזמנות האמיתיות מ-24 השבועות האחרונים:
+
+{orders_table}
+
+מוצרים ומחירים:
 {products_info}
 
-מה נשאר על המדף מהשבוע שעבר:
+מה נשאר על המדף עכשיו (להפחית מההזמנה):
 {inventory_info}
 
 מצב השבוע הקרוב: {context_str}
 
-כל היסטוריית המכירות ({len(recent_weeks)} שבועות):
-{history_info}
+בהתבסס על הטבלה האמיתית — ראה אילו כמויות מוזמנות בשבועות דומים (מכירות דומות, עונה דומה, חג דומה), הפחת את המלאי הקיים, והמלץ כמה להזמין מכל מוצר השבוע.
 
-מגמה: ממוצע שבועות רגילים = {normal_avg:.0f}% מכירות | ממוצע 3 שבועות אחרונים = {recent_avg:.0f}% | מגמה: {trend}
-
-משימתך: על סמך ההיסטוריה האמיתית (מה הוצאו בשבועות דומים, כמה מכרו), החלט כמה להזמין מכל מוצר השבוע.
-
-שיקולים:
-- שבועות עם מכירות דומות לשבוע הנוכחי — מה הוצאו עליהם? זו נקודת ייחוס.
-- מלאי שנשאר = כבר יש ממנו, הפחת מהכמות.
-- גשם = ירידה של כ-20% בביקוש.
-- לפני חג = עלייה בהתאם לחג.
-- הזמנה מינימלית: 500₪.
-
-ענה אך ורק ב-JSON תקין, ללא הסברים:
-{{"שם_מוצר": כמות, ...}}"""
+ענה ב-JSON בפורמט הבא בלבד:
+{{
+  "המלצות": {{"שם_מוצר": כמות, ...}},
+  "הסבר": "משפט קצר — על מה התבססת (דפוס מהעבר, מזג אוויר, חג וכו')"
+}}"""
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
                 model="claude-haiku-4-5-20251001",
-                max_tokens=512,
+                max_tokens=800,
                 messages=[{"role": "user", "content": prompt}]
             )
 
             response_text = message.content[0].text.strip()
-            # נקה JSON אם יש markdown
             if "```" in response_text:
                 response_text = response_text.split("```")[1]
                 if response_text.startswith("json"):
                     response_text = response_text[4:]
             response_text = response_text.strip()
 
-            recommendations = json.loads(response_text)
+            parsed = json.loads(response_text)
+            # תמיכה בשני פורמטים — חדש עם הסבר, ישן בלי
+            if "המלצות" in parsed:
+                recommendations = parsed["המלצות"]
+                OrderRecommender._last_reasoning = parsed.get("הסבר", "")
+            else:
+                recommendations = parsed
+                OrderRecommender._last_reasoning = ""
             # וודא שכל הערכים הם מספרים חיוביים
             return {k: max(0, int(v)) for k, v in recommendations.items() if v > 0}
 
