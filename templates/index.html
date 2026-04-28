@@ -447,7 +447,24 @@
       })
     });
     const data = await res.json();
-    // encodeURIComponent מבטיח קידוד UTF-8 נכון של עברית
+
+    // נסה לשלוח דרך הסקריפט המקומי
+    try {
+      const queueRes = await fetch('/api/queue-whatsapp', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ phone: data.phone, message: data.message })
+      });
+      const queueData = await queueRes.json();
+      if (queueData.success) {
+        const btn = document.getElementById('whatsapp-btn');
+        btn.textContent = '✅ ההזמנה נשלחת...';
+        setTimeout(() => { btn.textContent = '📲 שלח הזמנה ליענקי'; }, 5000);
+        return;
+      }
+    } catch(e) {}
+
+    // fallback — פתח wa.me
     const url = `https://wa.me/${data.phone}?text=${encodeURIComponent(data.message)}`;
     window.open(url, '_blank');
   }
