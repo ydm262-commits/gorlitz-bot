@@ -218,6 +218,22 @@ def api_sync_sheet():
     return jsonify(result)
 
 
+@app.route('/api/test-whatsapp', methods=['POST'])
+@login_required
+def api_test_whatsapp():
+    """שולח הודעת בדיקה למספר שצוין"""
+    db = get_db()
+    data = request.get_json()
+    phone = data.get('phone', '').replace('+', '').replace('-', '').replace(' ', '')
+    message = "🧪 בדיקה — הזמנות גרליץ עובדות! אם קיבלת את ההודעה הזו הכל תקין ✅"
+    db.conn.execute(
+        "INSERT INTO whatsapp_queue (phone, message) VALUES (?, ?)",
+        (phone, message)
+    )
+    db.conn.commit()
+    return jsonify({'success': True, 'phone': phone})
+
+
 @app.route('/api/queue-whatsapp', methods=['POST'])
 @login_required
 def api_queue_whatsapp():
