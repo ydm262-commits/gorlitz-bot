@@ -63,7 +63,8 @@ class OrderRecommender:
         holiday_factor: float,
         sales_pct: int,
         weather_desc: str = "",
-        holiday_desc: str = ""
+        holiday_desc: str = "",
+        user_notes: str = ""
     ) -> Optional[Dict[str, int]]:
         """
         שולח בקשה ל-Claude AI לקבל המלצת הזמנה חכמה.
@@ -103,6 +104,8 @@ class OrderRecommender:
                     note += ' גשם'
                 if summary.get('holiday_type'):
                     note += f" {summary.get('holiday_type')}"
+                if summary.get('user_notes'):
+                    note += f" | 💬{summary.get('user_notes')}"
                 rows.append(f"{date} | " + " | ".join(qtys) + f" | {sales}% | {note}")
             orders_table = header + "\n" + "\n".join(rows)
 
@@ -114,6 +117,8 @@ class OrderRecommender:
             if sales_pct < 100:
                 context_parts.append(f"נשאר מלאי — אחוז מכירות השבוע כ-{sales_pct}%")
             context_str = " | ".join(context_parts) if context_parts else "שבוע רגיל"
+
+            user_notes_section = f"\nהערות מבעל החנות השבוע:\n{user_notes}\n" if user_notes else ""
 
             prompt = f"""אתה מנהל הזמנות של חנות מאפה בבני ברק שמזמינה ממאפיית גרליץ כל שבוע.
 
@@ -128,13 +133,13 @@ class OrderRecommender:
 {inventory_info}
 
 מצב השבוע הקרוב: {context_str}
-
-בהתבסס על הטבלה האמיתית — ראה אילו כמויות מוזמנות בשבועות דומים (מכירות דומות, עונה דומה, חג דומה), הפחת את המלאי הקיים, והמלץ כמה להזמין מכל מוצר השבוע.
+{user_notes_section}
+בהתבסס על הטבלה האמיתית — ראה אילו כמויות מוזמנות בשבועות דומים (מכירות דומות, עונה דומה, חג דומה), הפחת את המלאי הקיים, והמלץ כמה להזמין מכל מוצר השבוע. אם יש הערות מבעל החנות — תן להן משקל גבוה.
 
 ענה ב-JSON בפורמט הבא בלבד:
 {{
   "המלצות": {{"שם_מוצר": כמות, ...}},
-  "הסבר": "משפט קצר — על מה התבססת (דפוס מהעבר, מזג אוויר, חג וכו')"
+  "הסבר": "משפט קצר — על מה התבססת (דפוס מהעבר, מזג אוויר, חג, הערות בעל החנות וכו')"
 }}"""
 
             client = anthropic.Anthropic(api_key=api_key)
@@ -172,7 +177,8 @@ class OrderRecommender:
         weather_factor: float = 1.0,
         holiday_factor: float = 1.0,
         sales_pct: int = 70,
-        holiday_desc: str = ""
+        holiday_desc: str = "",
+        user_notes: str = ""
     ) -> Dict[str, int]:
         """
         חישוב כמויות הזמנה מומלצות — Claude AI ראשון, fallback חישובי.
@@ -185,7 +191,8 @@ class OrderRecommender:
             holiday_factor=holiday_factor,
             sales_pct=sales_pct,
             weather_desc=weather_desc,
-            holiday_desc=holiday_desc
+            holiday_desc=holiday_desc,
+            user_notes=user_notes
         )
         if claude_result:
             print(f"Using Claude AI recommendation")
@@ -294,23 +301,12 @@ class OrderRecommender:
             "פירוט הזמנה:"
         ]
 
-        total_cost = 0
         for product_name, qty in sorted(recommendations.items()):
             if qty > 0:
-                product = db.get_product_by_name(product_name)
-                cost = qty * product['buy_price']
-                total_cost += cost
-                lines.append(f"  {product_name}: {qty} יח' ({cost:.0f} ש\"ח)")
+                lines.append(f"  {product_name}: {qty} יח'")
 
-        lines.extend([
-            "",
-            f"סה\"כ: {total_cost:.0f} ש\"ח",
-        ])
-
-        if weather_desc:
-            lines.append(f"מזג אוויר: {weather_desc}")
         if holiday_desc:
-            lines.append(f"הערה: {holiday_desc}")
+            lines.extend(["", f"הערה: {holiday_desc}"])
 
         lines.extend(["", "תודה רבה, יענקי!"])
         return "\n".join(lines)
