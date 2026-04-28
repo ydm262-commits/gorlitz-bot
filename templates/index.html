@@ -342,20 +342,54 @@
 
     // Order items — עם עריכה
     window._currentRecs = {};
+    window._buyPrices = {};
     const itemsDiv = document.getElementById('order-items');
     itemsDiv.innerHTML = '';
+
     data.order_items.forEach(item => {
       window._currentRecs[item.name] = item.qty;
-      itemsDiv.innerHTML += `
-        <div class="order-item">
-          <span>${item.name}</span>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="color:#888;font-size:0.8rem;" id="cost-${item.name.replace(/[^a-z0-9]/gi,'_')}">₪${item.cost.toFixed(0)}</span>
-            <button onclick="changeRec('${item.name}',-1)" style="background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;">−</button>
-            <span class="order-qty" id="rec-${item.name.replace(/[^a-z0-9]/gi,'_')}">${item.qty} יח'</span>
-            <button onclick="changeRec('${item.name}',1)" style="background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;">+</button>
-          </div>
-        </div>`;
+      window._buyPrices[item.name] = item.buy_price;
+
+      const row = document.createElement('div');
+      row.className = 'order-item';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.textContent = item.name;
+
+      const controls = document.createElement('div');
+      controls.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
+      const costSpan = document.createElement('span');
+      costSpan.className = 'item-cost';
+      costSpan.style.cssText = 'color:#888;font-size:0.8rem;';
+      costSpan.textContent = '₪' + item.cost.toFixed(0);
+
+      const btnMinus = document.createElement('button');
+      btnMinus.className = 'rec-btn';
+      btnMinus.dataset.name = item.name;
+      btnMinus.dataset.delta = '-1';
+      btnMinus.style.cssText = 'background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;';
+      btnMinus.textContent = '−';
+
+      const qtySpan = document.createElement('span');
+      qtySpan.className = 'order-qty rec-qty';
+      qtySpan.textContent = item.qty + " יח'";
+
+      const btnPlus = document.createElement('button');
+      btnPlus.className = 'rec-btn';
+      btnPlus.dataset.name = item.name;
+      btnPlus.dataset.delta = '1';
+      btnPlus.style.cssText = 'background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;';
+      btnPlus.textContent = '+';
+
+      controls.append(costSpan, btnMinus, qtySpan, btnPlus);
+      row.append(nameSpan, controls);
+      itemsDiv.appendChild(row);
+    });
+
+    // חיבור אירועי לחיצה
+    itemsDiv.querySelectorAll('.rec-btn').forEach(btn => {
+      btn.addEventListener('click', () => changeRec(btn.dataset.name, parseInt(btn.dataset.delta)));
     });
 
     document.getElementById('total-cost').textContent = '₪' + data.total_cost.toFixed(0);
