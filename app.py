@@ -92,6 +92,14 @@ def api_analyze():
     inventory = data.get('inventory', {})
     user_notes = data.get('user_notes', '')
 
+    # סנכרן אוטומטית מגוגל שיטס לפני כל המלצה
+    try:
+        from sheets_sync import sync_from_google_sheets
+        sync_result = sync_from_google_sheets()
+        print(f"[Auto-sync] {sync_result}")
+    except Exception as e:
+        print(f"[Auto-sync] נכשל: {e}")
+
     # Get weather and calendar
     try:
         weather = run_async(WeatherClient.get_friday_forecast())
