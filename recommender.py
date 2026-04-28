@@ -22,15 +22,15 @@ class OrderRecommender:
 
     # כמויות בסיס ריאליות לשבוע רגיל (calibrated לפי ניסיון)
     PRODUCT_DEFAULTS = {
-        "חלות מתוק":            6,
-        "רוגלך שוקולד":         10,
-        "רוגלך עלים קקאו":      8,
-        "קוקוש קייק":           5,
-        "קראנץ' קקאו":          7,
-        "גביניות":              6,
-        "פס שמרים גבינה":       10,
-        "פס שמרים קקאו שקית":   12,
-        "פס שוקולד פירורים":    7,
+        "חלות מתוק":            0,
+        "רוגלך שוקולד":         12,
+        "רוגלך עלים קקאו":      3,
+        "קוקוש קייק":           2,
+        "קראנץ' קקאו":          2,
+        "גביניות":              5,
+        "פס שמרים גבינה":       2,
+        "פס שמרים קקאו שקית":   3,
+        "פס שוקולד פירורים":    2,
     }
 
     @staticmethod
@@ -170,7 +170,7 @@ class OrderRecommender:
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
                 model="claude-sonnet-4-6",
-                max_tokens=800,
+                max_tokens=2000,
                 messages=[{"role": "user", "content": prompt}]
             )
             # לוג שימוש בטוקנים
