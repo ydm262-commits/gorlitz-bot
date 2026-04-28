@@ -78,9 +78,15 @@ class GorlitzDatabase:
                 exceptional_reason TEXT,
                 sales_pct INTEGER,
                 week_type TEXT,
+                user_notes TEXT,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        # הוספת עמודה לטבלה קיימת אם לא קיימת
+        try:
+            cursor.execute("ALTER TABLE weekly_summary ADD COLUMN user_notes TEXT")
+        except Exception:
+            pass
 
         # טבלת גורמים שנלמדו
         cursor.execute("""
@@ -252,14 +258,14 @@ class GorlitzDatabase:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def save_weekly_summary(self, week_date: str, summary_data: Dict):
+    def save_weekly_summary(self, week_date: str, summary_data: Dict, user_notes: str = ""):
         """שמירת סיכום שבועי"""
         cursor = self.conn.cursor()
         cursor.execute("""
             INSERT OR REPLACE INTO weekly_summary
             (week_date, total_cost, total_revenue, net_profit, weather_rain,
-             holiday_type, was_exceptional, exceptional_reason, sales_pct)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             holiday_type, was_exceptional, exceptional_reason, sales_pct, user_notes)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             week_date,
             summary_data.get('total_cost'),
@@ -269,7 +275,8 @@ class GorlitzDatabase:
             summary_data.get('holiday_type'),
             summary_data.get('was_exceptional', False),
             summary_data.get('exceptional_reason'),
-            summary_data.get('sales_pct')
+            summary_data.get('sales_pct'),
+            user_notes or ""
         ))
         self.conn.commit()
 
