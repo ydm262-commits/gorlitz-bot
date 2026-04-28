@@ -206,8 +206,15 @@
 
       <div id="results-content" style="display:none;">
 
+        <!-- כרטיס שקיפות AI -->
+        <div class="card" id="ai-context-card" style="background:#f0f7ff;border:1px solid #b3d4f5;display:none;">
+          <h2 style="color:#1a5fa8;font-size:1rem;">&#x1F9E0; Claude חשב כך:</h2>
+          <div id="ai-reasoning" style="font-size:0.9rem;color:#333;margin-bottom:10px;"></div>
+          <div id="ai-context-details" style="font-size:0.82rem;color:#555;"></div>
+        </div>
+
         <div class="card">
-          <h2>&#x1F4CB; הזמנה מומלצת</h2>
+          <h2>&#x1F4CB; הזמנה מומלצת <span style="font-size:0.75rem;color:#888;font-weight:normal;">(לחץ על כמות לעריכה)</span></h2>
           <div id="order-items"></div>
           <div class="total-box">
             <div class="label">סה"כ להזמנה</div>
@@ -247,6 +254,10 @@
   <div id="tab-history" class="tab-content">
     <div class="card">
       <h2>&#x1F4C5; הזמנות אחרונות</h2>
+      <button class="btn" onclick="syncSheet()" style="background:#4CAF50;color:#fff;margin-bottom:12px;width:100%">
+        &#x1F504; סנכרן מגוגל שיטס
+      </button>
+      <div id="sync-status" style="font-size:0.85rem;color:#888;margin-bottom:8px;"></div>
       <div id="history-content">
         <div class="loading">
           <div class="spinner"></div>
@@ -299,26 +310,43 @@
   }
 
   function showResults(data) {
-    // Order items
+    // כרטיס שקיפות AI
+    if (data.ai_reasoning || data.context) {
+      const card = document.getElementById('ai-context-card');
+      card.style.display = 'block';
+      document.getElementById('ai-reasoning').textContent = data.ai_reasoning || '';
+      const ctx = data.context || {};
+      const details = [];
+      if (ctx.weather_desc) details.push('🌤 מזג אוויר: ' + ctx.weather_desc);
+      if (ctx.holiday_desc) details.push('✡️ חג: ' + ctx.holiday_desc);
+      if (ctx.sales_pct) details.push('📊 אחוז מכירות מוערך: ' + ctx.sales_pct + '%');
+      document.getElementById('ai-context-details').textContent = details.join(' | ');
+    }
+
+    // Order items — עם עריכה
+    window._currentRecs = {};
     const itemsDiv = document.getElementById('order-items');
     itemsDiv.innerHTML = '';
     data.order_items.forEach(item => {
+      window._currentRecs[item.name] = item.qty;
       itemsDiv.innerHTML += `
         <div class="order-item">
           <span>${item.name}</span>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="color:#888;font-size:0.8rem;">&#x20AA;${item.cost.toFixed(0)}</span>
-            <span class="order-qty">${item.qty} יח'</span>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="color:#888;font-size:0.8rem;" id="cost-${item.name.replace(/[^a-z0-9]/gi,'_')}">₪${item.cost.toFixed(0)}</span>
+            <button onclick="changeRec('${item.name}',-1)" style="background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;">−</button>
+            <span class="order-qty" id="rec-${item.name.replace(/[^a-z0-9]/gi,'_')}">${item.qty} יח'</span>
+            <button onclick="changeRec('${item.name}',1)" style="background:#e8d5c0;border:none;border-radius:50%;width:24px;height:24px;cursor:pointer;font-size:14px;">+</button>
           </div>
         </div>`;
     });
 
-    document.getElementById('total-cost').textContent = '&#x20AA;' + data.total_cost.toFixed(0);
+    document.getElementById('total-cost').textContent = '₪' + data.total_cost.toFixed(0);
 
     // Summary stats
     const s = data.summary;
-    document.getElementById('stat-revenue').textContent = '&#x20AA;' + s.total_revenue.toFixed(0);
-    document.getElementById('stat-profit').textContent = '&#x20AA;' + s.net_profit.toFixed(0);
+    document.getElementById('stat-revenue').textContent = '₪' + s.total_revenue.toFixed(0);
+    document.getElementById('stat-profit').textContent = '₪' + s.net_profit.toFixed(0);
     document.getElementById('stat-sales').textContent = data.sales_pct + '%';
 
     // Weather
@@ -376,6 +404,41 @@
     });
     html += '</tbody></table>';
     document.getElementById('history-content').innerHTML = html;
+  }
+
+  function changeRec(name, delta) {
+    if (!window._currentRecs) return;
+    const buyPrice = parseFloat(document.querySelector(`[data-buy="${name}"]`)?.dataset.buy || 0);
+    window._currentRecs[name] = Math.max(0, (window._currentRecs[name] || 0) + delta);
+    const qty = window._currentRecs[name];
+    const key = name.replace(/[^a-z0-9]/gi,'_');
+    const el = document.getElementById('rec-' + key);
+    if (el) el.textContent = qty + " יח'";
+    // עדכן סה"כ
+    let total = 0;
+    document.querySelectorAll('[id^="rec-"]').forEach(el => {
+      const n = el.id.replace('rec-','').replace(/_/g,' ');
+      // מחפש את המחיר מהרשימה המקורית
+    });
+    // שמור לשליחה
+    window._editedRecs = Object.assign({}, window._currentRecs);
+  }
+
+  async function syncSheet() {
+    document.getElementById('sync-status').textContent = 'מסנכרן...';
+    try {
+      const res = await fetch('/api/sync-sheet', { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        document.getElementById('sync-status').textContent =
+          `✅ סונכרן! ${data.weeks_found} שבועות, ${data.total_weeks_in_db} שבועות בבסיס הנתונים`;
+        loadHistory();
+      } else {
+        document.getElementById('sync-status').textContent = '❌ ' + (data.error || 'שגיאה');
+      }
+    } catch(e) {
+      document.getElementById('sync-status').textContent = '❌ שגיאת חיבור';
+    }
   }
 
   function showTab(tab) {
