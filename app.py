@@ -90,6 +90,7 @@ def api_analyze():
 
     data = request.get_json()
     inventory = data.get('inventory', {})
+    user_notes = data.get('user_notes', '')
 
     # Get weather and calendar
     try:
@@ -110,7 +111,8 @@ def api_analyze():
         weather_factor=weather_factor,
         holiday_factor=holiday_factor,
         sales_pct=sales_pct,
-        holiday_desc=holiday_desc
+        holiday_desc=holiday_desc,
+        user_notes=user_notes
     )
 
     summary = OrderRecommender.calculate_weekly_summary(
@@ -194,7 +196,8 @@ def api_save_order():
     data = request.get_json()
     week_date = data.get('week_date', datetime.now().strftime('%Y-%m-%d'))
     summary_data = data.get('summary', {})
-    db.save_weekly_summary(week_date, summary_data)
+    user_notes = data.get('user_notes', '')
+    db.save_weekly_summary(week_date, summary_data, user_notes=user_notes)
     return jsonify({'success': True})
 
 
