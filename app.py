@@ -36,15 +36,15 @@ def get_db():
 
 
 def run_async(coro):
-    """Run async function in sync context"""
+    """Run async function in sync context - Python 3.12 safe"""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            raise RuntimeError
+        return asyncio.run(coro)
     except RuntimeError:
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-    return loop.run_until_complete(coro)
+        try:
+            return loop.run_until_complete(coro)
+        finally:
+            loop.close()
 
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -132,6 +132,8 @@ def api_analyze():
                 'buy_price': product['buy_price']
             })
 
+    reasoning = getattr(OrderRecommender, '_last_reasoning', '')
+
     return jsonify({
         'recommendations': recommendations,
         'order_items': order_items,
@@ -139,7 +141,14 @@ def api_analyze():
         'summary': summary,
         'weather': weather,
         'holiday_desc': holiday_desc,
-        'sales_pct': sales_pct
+        'sales_pct': sales_pct,
+        'ai_reasoning': reasoning,
+        'context': {
+            'weather_desc': weather.get('description_he', ''),
+            'is_rainy': weather.get('is_rainy', False),
+            'holiday_desc': holiday_desc,
+            'sales_pct': sales_pct
+        }
     })
 
 
@@ -187,6 +196,15 @@ def api_save_order():
     summary_data = data.get('summary', {})
     db.save_weekly_summary(week_date, summary_data)
     return jsonify({'success': True})
+
+
+@app.route('/api/sync-sheet', methods=['POST'])
+@login_required
+def api_sync_sheet():
+    """סנכרון נתונים מגוגל שיטס"""
+    from sheets_sync import sync_from_google_sheets
+    result = sync_from_google_sheets()
+    return jsonify(result)
 
 
 if __name__ == '__main__':
