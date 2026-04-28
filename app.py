@@ -218,6 +218,43 @@ def api_sync_sheet():
     return jsonify(result)
 
 
+@app.route('/api/queue-whatsapp', methods=['POST'])
+@login_required
+def api_queue_whatsapp():
+    """שמור הודעת WhatsApp בתור — הסקריפט המקומי ישלח אותה"""
+    db = get_db()
+    data = request.get_json()
+    phone = data.get('phone', '')
+    message = data.get('message', '')
+    if not phone or not message:
+        return jsonify({'error': 'חסרים נתונים'}), 400
+    db.conn.execute(
+        "INSERT INTO whatsapp_queue (phone, message) VALUES (?, ?)",
+        (phone, message)
+    )
+    db.conn.commit()
+    return jsonify({'success': True, 'queued': True})
+
+
+@app.route('/api/poll-whatsapp')
+def api_poll_whatsapp():
+    """סקריפט מקומי מושך הודעות ממתינות — מאובטח בקוד כניסה"""
+    secret = request.args.get('secret', '')
+    if secret != LOGIN_CODE:
+        return jsonify({'error': 'unauthorized'}), 401
+    db = get_db()
+    rows = db.conn.execute(
+        "SELECT id, phone, message FROM whatsapp_queue WHERE sent=0 ORDER BY created_at"
+    ).fetchall()
+    if rows:
+        ids = [r['id'] for r in rows]
+        db.conn.execute(
+            f"UPDATE whatsapp_queue SET sent=1 WHERE id IN ({','.join('?'*len(ids))})", ids
+        )
+        db.conn.commit()
+    return jsonify({'messages': [{'phone': r['phone'], 'message': r['message']} for r in rows]})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
