@@ -191,7 +191,15 @@
         {% endfor %}
       </div>
 
-      <button class="btn btn-primary" onclick="analyze()" style="margin-top:20px;">
+      <div style="margin-top:16px;">
+        <label style="font-weight:600;color:#6b3a1f;display:block;margin-bottom:6px;">
+          💬 הערות לקלוד (אופציונלי)
+        </label>
+        <textarea id="user-notes" rows="3" placeholder="למשל: השבוע היה אירוע גדול, צפי לחג, הרוגלך נגמרו מוקדם, מחר גשם חזק..."
+          style="width:100%;padding:10px 14px;border:1.5px solid #d4b896;border-radius:10px;font-size:0.95rem;font-family:inherit;direction:rtl;resize:vertical;background:#fffdf9;color:#2c1a0e;"></textarea>
+      </div>
+
+      <button class="btn btn-primary" onclick="analyze()" style="margin-top:12px;">
         &#x1F916; קבל המלצה חכמה
       </button>
     </div>
@@ -239,6 +247,15 @@
             <span class="stat-label">אחוז מכירות</span>
             <span class="stat-value" id="stat-sales"></span>
           </div>
+        </div>
+
+        <!-- הערות על ההזמנה -->
+        <div class="card" style="background:#fffdf5;border:1.5px solid #e0c97a;">
+          <h2 style="color:#7a5c00;font-size:1rem;">&#x1F4DD; הערות על ההזמנה (יישמרו לשבועות הבאים)</h2>
+          <textarea id="order-notes" rows="3"
+            placeholder="למשל: רוגלך שוקולד נגמרו מוקדם, הפחתתי גבינות כי נשאר הרבה, שבוע עמוס..."
+            style="width:100%;padding:10px 14px;border:1.5px solid #d4b896;border-radius:10px;font-size:0.92rem;font-family:inherit;direction:rtl;resize:vertical;background:#fffff8;color:#2c1a0e;margin-top:4px;"></textarea>
+          <p style="font-size:0.78rem;color:#888;margin-top:6px;">קלוד יראה הערות אלה בשבוע הבא כשיכין את ההמלצה הבאה</p>
         </div>
 
         <button class="btn btn-whatsapp" id="whatsapp-btn" onclick="sendWhatsApp()">
@@ -297,7 +314,7 @@
       const res = await fetch('/api/analyze', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ inventory })
+        body: JSON.stringify({ inventory, user_notes: document.getElementById('user-notes').value.trim() })
       });
       const data = await res.json();
       lastResults = data;
@@ -369,11 +386,26 @@
   async function sendWhatsApp() {
     if (!lastResults) return;
     const today = new Date().toISOString().split('T')[0];
+    const orderNotes = document.getElementById('order-notes')?.value.trim() || '';
+
+    // שמור הזמנה עם הערות לפני שליחה
+    if (lastResults.summary) {
+      await fetch('/api/save-order', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+          week_date: today,
+          summary: lastResults.summary,
+          user_notes: orderNotes
+        })
+      });
+    }
+
     const res = await fetch('/api/whatsapp-message', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        recommendations: lastResults.recommendations,
+        recommendations: window._currentRecs || lastResults.recommendations,
         week_date: today,
         summary: lastResults.summary,
         weather_desc: lastResults.weather?.description_he || '',
