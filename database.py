@@ -99,6 +99,17 @@ class GorlitzDatabase:
             )
         """)
 
+        # תור הודעות WhatsApp
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS whatsapp_queue (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                phone TEXT NOT NULL,
+                message TEXT NOT NULL,
+                sent INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+
         self.conn.commit()
         self._load_products()
         self._load_historical_data()
