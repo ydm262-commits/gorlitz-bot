@@ -6,6 +6,7 @@ recommender.py - Smart Recommendation Engine for Gorlitz Bot
 
 import os
 import json
+import re
 from typing import Dict, List, Optional
 from database import get_database
 from datetime import datetime
@@ -181,7 +182,104 @@ class OrderRecommender:
                 recommendations = parsed
                 OrderRecommender._last_reasoning = ""
             # וודא שכל הערכים הם מספרים חיוביים
-            return {k: max(0, int(v)) for k, v in recommendations.items() if v > 0}
+            recommendations = {k: max(0, int(v)) for k, v in recommendations.items() if v > 0}
+
+            # --- לולאת תיקון עצמי ---
+            # חשב עלות אמיתית מ-DB
+            db2 = get_database()
+            actual_total = 0.0
+            for pname, qty in recommendations.items():
+                p = db2.get_product_by_name(pname)
+                if p:
+                    actual_total += qty * p['buy_price']
+
+            # חפש תקציב בהערות המשתמש
+            budget_limit = None
+            if user_notes:
+                m = re.search(r'תקציב[:\s]*(\d+)', user_notes)
+                if not m:
+                    m = re.search(r'(\d+)\s*[₪ש"ח]', user_notes)
+                if m:
+                    budget_limit = float(m.group(1))
+
+            needs_correction = False
+            correction_reason = ""
+
+            if budget_limit and actual_total > budget_limit * 1.05:
+                needs_correction = True
+                correction_reason = (
+                    f"סה\"כ בפועל: ₪{actual_total:.0f} — חורג מהתקציב שצוין ₪{budget_limit:.0f}. "
+                    f"צמצם כמויות עד שהסכום ≤ ₪{budget_limit:.0f}."
+                )
+            elif budget_limit is None:
+                # בדוק אם קלוד כתב בהסבר סכום שלא מתאים למציאות
+                # קח את הסכום ה-אחרון שקלוד כתב — הוא הסופי אחרי תיקוניו
+                all_amounts = re.findall(r'[≈=]\s*(\d+)\s*₪|₪\s*(\d+)', OrderRecommender._last_reasoning or "")
+                claimed = None
+                for a, b in reversed(all_amounts):
+                    val = a or b
+                    if val and int(val) > 100:  # סכום הגיוני (לא כמות)
+                        claimed = float(val)
+                        break
+                if claimed and abs(claimed - actual_total) > claimed * 0.08:  # פער > 8%
+                    needs_correction = True
+                    correction_reason = (
+                        f"כתבת בהסבר שהסכום הסופי הוא ₪{claimed:.0f} אבל ה-JSON שלך נותן ₪{actual_total:.0f}. "
+                        f"תקן את כמויות ה-JSON כך שהחישוב יתן בדיוק את מה שכתבת."
+                    )
+
+            if needs_correction:
+                print(f"[Self-correction] {correction_reason}")
+                # בנה פירוט כמויות × מחירים לקלוד
+                breakdown_lines = []
+                for pname, qty in recommendations.items():
+                    p = db2.get_product_by_name(pname)
+                    price = p['buy_price'] if p else 0
+                    breakdown_lines.append(f"  {pname}: {qty} × ₪{price} = ₪{qty*price:.0f}")
+                breakdown = "\n".join(breakdown_lines)
+
+                correction_prompt = f"""התשובה הקודמת שלך:
+{json.dumps({"המלצות": recommendations, "הסבר": OrderRecommender._last_reasoning}, ensure_ascii=False)}
+
+חישוב אמיתי של הסכום:
+{breakdown}
+סה"כ בפועל: ₪{actual_total:.0f}
+
+{correction_reason}
+
+ענה שוב בפורמט JSON בלבד:
+{{
+  "המלצות": {{"שם_מוצר": כמות, ...}},
+  "הסבר": "..."
+}}"""
+
+                msg2 = client.messages.create(
+                    model="claude-sonnet-4-6",
+                    max_tokens=1000,
+                    messages=[
+                        {"role": "user", "content": prompt},
+                        {"role": "assistant", "content": response_text},
+                        {"role": "user", "content": correction_prompt}
+                    ]
+                )
+                u2 = msg2.usage
+                cost2 = (u2.input_tokens * 3 + u2.output_tokens * 15) / 1_000_000
+                print(f"[Correction tokens] input={u2.input_tokens}, output={u2.output_tokens}, עלות≈${cost2:.4f}")
+
+                r2 = msg2.content[0].text.strip()
+                if "```" in r2:
+                    r2 = r2.split("```")[1]
+                    if r2.startswith("json"):
+                        r2 = r2[4:]
+                r2 = r2.strip()
+                p2 = json.loads(r2)
+                if "המלצות" in p2:
+                    recommendations = {k: max(0, int(v)) for k, v in p2["המלצות"].items() if v > 0}
+                    OrderRecommender._last_reasoning = p2.get("הסבר", "")
+                else:
+                    recommendations = {k: max(0, int(v)) for k, v in p2.items() if v > 0}
+
+            return recommendations
 
         except Exception as e:
             print(f"Claude recommendation failed: {e}")
