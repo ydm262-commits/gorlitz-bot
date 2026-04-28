@@ -149,7 +149,7 @@ class OrderRecommender:
 
             client = anthropic.Anthropic(api_key=api_key)
             message = client.messages.create(
-                model="claude-haiku-4-5-20251001",
+                model="claude-sonnet-4-6",
                 max_tokens=800,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -313,5 +313,5 @@ class OrderRecommender:
         if holiday_desc:
             lines.extend(["", f"הערה: {holiday_desc}"])
 
-        lines.extend(["", "תודה רבה, ושבוע טוב!"])
+        lines.extend(["", "תודה רבה, יענקי!"])
         return "\n".join(lines)
